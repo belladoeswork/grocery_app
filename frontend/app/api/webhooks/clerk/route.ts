@@ -43,9 +43,13 @@ export async function POST(req: Request) {
   // Handle the webhook
   const eventType = evt.type;
   
+  console.log(`Received webhook event: ${eventType}`);
+
   if (eventType === 'user.created') {
     const { id, email_addresses, first_name, last_name } = evt.data;
     const email = email_addresses && email_addresses[0]?.email_address;
+
+    console.log(`Processing new user: ${id}, email: ${email}`);
 
     // Create a Supabase client
     const supabase = createClient(
@@ -54,7 +58,7 @@ export async function POST(req: Request) {
     );
 
     // Insert the user into your Supabase users table
-    const { error } = await supabase
+    const { error, data } = await supabase
       .from('users')
       .insert({
         id: id, // Use Clerk's user ID
@@ -62,7 +66,8 @@ export async function POST(req: Request) {
         first_name: first_name,
         last_name: last_name,
         created_at: new Date().toISOString()
-      });
+      })
+      .select();
 
     if (error) {
       console.error('Error inserting user into Supabase:', error);
@@ -70,6 +75,8 @@ export async function POST(req: Request) {
         status: 500
       });
     }
+    
+    console.log('Successfully inserted user into Supabase:', data);
   }
 
   return new Response('Webhook received', {
