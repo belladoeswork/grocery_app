@@ -92,28 +92,41 @@ export async function POST(req: Request) {
       console.log("Service role key starts with:", process.env.SUPABASE_SERVICE_ROLE_KEY?.substring(0, 5) + "...");
 
       try {
-        // Insert the user into your Supabase users table
+        // Before inserting, check if the user already exists
+        const { data: existingUser } = await supabase
+          .from('Users')
+          .select('id')
+          .eq('id', id)
+          .single();
+
+        if (existingUser) {
+          console.log('User already exists:', id);
+          return new Response('User already exists', { status: 200 });
+        }
+
+        // Prepare the user data
+        const userData = {
+          id: id || `user_${Date.now()}`, // Fallback ID if somehow null
+          email: email || `unknown_${Date.now()}@example.com`, // Fallback email
+          username: first_name || email?.split('@')[0] || `user_${Date.now()}`, // Fallback username
+          phone_number: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          address: null,
+          role: 'user'
+        };
+
+        console.log("Attempting to insert user with data:", userData);
+
+        // Now insert the user
         const { error, data } = await supabase
           .from('Users')
-          .insert({
-            id: id,
-            email: email,
-            username: email?.split('@')[0] || id,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          })
+          .insert(userData)
           .select();
 
-        console.log("Attempting to insert user with data:", {
-          id,
-          email,
-          username: email?.split('@')[0] || id,
-          created_at: new Date().toISOString()
-        });
-
         if (error) {
-          console.error('Supabase insert error:', error);
-          return new Response(`Database error: ${error.message}`, {
+          console.error('Supabase insert error:', JSON.stringify(error, null, 2));
+          return new Response(`Database error: ${error.message || JSON.stringify(error) || 'Unknown database error'}`, {
             status: 500
           });
         }
