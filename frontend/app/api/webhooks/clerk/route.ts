@@ -59,9 +59,23 @@ export async function POST(req: Request) {
     console.log(`Processing webhook event: ${eventType}`);
 
     if (eventType === 'user.created') {
-      const { id, email_addresses, first_name, last_name } = evt.data;
-      const email = email_addresses && email_addresses[0]?.email_address;
-
+      // Log the full data structure to understand its format
+      console.log("Full user data:", JSON.stringify(evt.data));
+      
+      // The data structure from Clerk is different than what we're expecting
+      // Let's extract the fields correctly
+      const id = evt.data.id;
+      const email = evt.data.email_addresses?.[0]?.email_address;
+      const first_name = evt.data.first_name || null;
+      const last_name = evt.data.last_name || null;
+      
+      console.log(`Processing user with extracted data:`, {
+        id,
+        email,
+        first_name,
+        last_name
+      });
+      
       // Verify Supabase environment variables
       if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
         console.error("Missing Supabase configuration");
@@ -74,18 +88,28 @@ export async function POST(req: Request) {
         process.env.SUPABASE_SERVICE_ROLE_KEY
       );
 
+      console.log("Creating Supabase client with URL:", process.env.NEXT_PUBLIC_SUPABASE_URL);
+      console.log("Service role key starts with:", process.env.SUPABASE_SERVICE_ROLE_KEY?.substring(0, 5) + "...");
+
       try {
         // Insert the user into your Supabase users table
         const { error, data } = await supabase
-          .from('users')
+          .from('Users')
           .insert({
             id: id,
             email: email,
-            first_name: first_name,
-            last_name: last_name,
-            created_at: new Date().toISOString()
+            username: email?.split('@')[0] || id,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
           })
           .select();
+
+        console.log("Attempting to insert user with data:", {
+          id,
+          email,
+          username: email?.split('@')[0] || id,
+          created_at: new Date().toISOString()
+        });
 
         if (error) {
           console.error('Supabase insert error:', error);
