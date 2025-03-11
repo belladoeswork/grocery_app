@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+nextjs
+tailwindcss
+typescript
+clerk
+dotenv 
+psycopg2
