@@ -91,50 +91,47 @@ export async function POST(req: Request) {
       console.log("Creating Supabase client with URL:", process.env.NEXT_PUBLIC_SUPABASE_URL);
       console.log("Service role key starts with:", process.env.SUPABASE_SERVICE_ROLE_KEY?.substring(0, 5) + "...");
 
+      // Before trying to insert, check if the table exists
+      const { data: tables, error: tableError } = await supabase
+        .from('information_schema.tables')
+        .select('table_name')
+        .eq('table_schema', 'public');
+
+      console.log('Available tables:', tables);
+
+      if (tableError) {
+        console.error('Error checking tables:', tableError);
+        return new Response(`Error checking tables: ${JSON.stringify(tableError)}`, {
+          status: 500
+        });
+      }
+
+      // Check if Users table exists
+      const usersTableExists = tables.some(t => t.table_name === 'Users');
+      if (!usersTableExists) {
+        console.error('Users table does not exist!');
+        return new Response('Users table does not exist', { status: 500 });
+      }
+
       try {
-        // Before inserting, check if the user already exists
-        const { data: existingUser } = await supabase
-          .from('Users')
-          .select('id')
-          .eq('id', id)
-          .single();
-
-        if (existingUser) {
-          console.log('User already exists:', id);
-          return new Response('User already exists', { status: 200 });
-        }
-
-        // Prepare the user data
-        const userData = {
-          id: id || `user_${Date.now()}`, // Fallback ID if somehow null
-          email: email || `unknown_${Date.now()}@example.com`, // Fallback email
-          username: first_name || email?.split('@')[0] || `user_${Date.now()}`, // Fallback username
-          phone_number: null,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          address: null,
-          role: 'user'
-        };
-
-        console.log("Attempting to insert user with data:", userData);
-
-        // Now insert the user
-        const { error, data } = await supabase
-          .from('Users')
-          .insert(userData)
-          .select();
+        // Try a direct SQL query
+        const { data, error } = await supabase.rpc('insert_user', {
+          user_id: id,
+          user_email: email,
+          user_name: first_name || email?.split('@')[0] || 'user'
+        });
 
         if (error) {
-          console.error('Supabase insert error:', JSON.stringify(error, null, 2));
-          return new Response(`Database error: ${error.message || JSON.stringify(error) || 'Unknown database error'}`, {
+          console.error('SQL insert error:', error);
+          return new Response(`SQL error: ${JSON.stringify(error)}`, {
             status: 500
           });
         }
 
-        console.log('Successfully inserted user:', data);
+        console.log('SQL insert result:', data);
       } catch (err) {
-        console.error('Error during Supabase operation:', err);
-        return new Response(`Database operation failed: ${err instanceof Error ? err.message : 'Unknown error'}`, {
+        console.error('Error with SQL operation:', err);
+        return new Response(`SQL operation failed: ${err instanceof Error ? err.message : JSON.stringify(err)}`, {
           status: 500
         });
       }
